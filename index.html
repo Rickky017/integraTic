@@ -4,7 +4,170 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Plan de Integración TIC - Centro Educativo en Artes Eduardo Brito</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+<!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-storage.js"></script>
+  <style>
+    .foto-profesor { width: 80px; height: 80px; object-fit: cover; border-radius: 50%; }
+  </style>
+</head>
+<body>
+  <h1>Gestión de Profesores - integraTic</h1>
+
+  <!-- Registro/Login -->
+  <div id="authArea">
+    <h2>Acceso</h2>
+    <input type="email" id="loginCorreo" placeholder="Correo">
+    <input type="password" id="loginClave" placeholder="Contraseña">
+    <button onclick="login()">Ingresar</button>
+    <button onclick="logout()" style="display:none" id="logoutBtn">Cerrar sesión</button>
+    <div id="userInfo"></div>
+  </div>
+
+  <!-- Formulario de registro de profesor -->
+  <div id="formArea" style="display:none">
+    <h2>Registrar profesor</h2>
+    <input type="text" id="nombre" placeholder="Nombre">
+    <input type="text" id="apellidos" placeholder="Apellidos">
+    <input type="text" id="cedula" placeholder="Cédula/ID">
+    <input type="email" id="correo" placeholder="Correo">
+    <input type="tel" id="telefono" placeholder="Teléfono">
+    <select id="rol">
+      <option value="profesor">Profesor</option>
+      <option value="admin">Administrador</option>
+    </select>
+    <input type="text" id="materia" placeholder="Materia">
+    <input type="file" id="foto">
+    <button onclick="agregarProfesor()">Guardar profesor</button>
+  </div>
+
+  <!-- Listado de profesores -->
+  <h2>Profesores registrados</h2>
+  <div id="listadoProfesores"></div>
+
+  <script>
+    // Reemplaza los datos con tu configuración real de Firebase
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TU_AUTH_DOMAIN",
+      projectId: "TU_PROJECT_ID",
+      storageBucket: "TU_STORAGE_BUCKET",
+      messagingSenderId: "TU_MESSAGING_SENDER_ID",
+      appId: "TU_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    const auth = firebase.auth();
+    const storage = firebase.storage();
+
+    // Login y control de acceso
+    async function login() {
+      const correo = document.getElementById('loginCorreo').value;
+      const clave = document.getElementById('loginClave').value;
+      try {
+        await auth.signInWithEmailAndPassword(correo, clave);
+        document.getElementById('logoutBtn').style.display = '';
+        document.getElementById('formArea').style.display = '';
+        document.getElementById('userInfo').innerText = "Conectado como: " + correo;
+      } catch (e) {
+        alert("Error de acceso: " + e.message);
+      }
+    }
+    function logout() {
+      auth.signOut();
+      document.getElementById('logoutBtn').style.display = 'none';
+      document.getElementById('formArea').style.display = 'none';
+      document.getElementById('userInfo').innerText = "";
+    }
+    auth.onAuthStateChanged(user => {
+      if (user) {
+        document.getElementById('formArea').style.display = '';
+        document.getElementById('logoutBtn').style.display = '';
+        document.getElementById('userInfo').innerText = "Conectado como: " + user.email;
+      } else {
+        document.getElementById('formArea').style.display = 'none';
+        document.getElementById('logoutBtn').style.display = 'none';
+        document.getElementById('userInfo').innerText = "";
+      }
+    });
+
+    // Subir foto y guardar datos
+    async function agregarProfesor() {
+      const nombre = document.getElementById('nombre').value;
+      const apellidos = document.getElementById('apellidos').value;
+      const cedula = document.getElementById('cedula').value;
+      const correo = document.getElementById('correo').value;
+      const telefono = document.getElementById('telefono').value;
+      const rol = document.getElementById('rol').value;
+      const materia = document.getElementById('materia').value;
+      const fotoFile = document.getElementById('foto').files[0];
+
+      let fotoURL = "";
+      if (fotoFile) {
+        const storageRef = storage.ref('fotos_profesores/' + cedula + '_' + fotoFile.name);
+        await storageRef.put(fotoFile);
+        fotoURL = await storageRef.getDownloadURL();
+      }
+
+      await db.collection("profesores").add({
+        nombre, apellidos, cedula, correo, telefono, rol, materia, fotoURL
+      });
+      alert('Profesor guardado correctamente');
+      mostrarProfesores();
+      // Limpiar campos
+      document.getElementById('nombre').value = "";
+      document.getElementById('apellidos').value = "";
+      document.getElementById('cedula').value = "";
+      document.getElementById('correo').value = "";
+      document.getElementById('telefono').value = "";
+      document.getElementById('materia').value = "";
+      document.getElementById('foto').value = "";
+    }
+
+    // Mostrar listado
+    async function mostrarProfesores() {
+      const cont = document.getElementById('listadoProfesores');
+      cont.innerHTML = "";
+      const snapshot = await db.collection("profesores").get();
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        cont.innerHTML += `
+          <div style="margin-bottom:10px;border:1px solid #ccc;padding:10px;border-radius:8px;">
+            <img src="${data.fotoURL || 'https://via.placeholder.com/80'}" class="foto-profesor">
+            <b>${data.nombre} ${data.apellidos}</b> (${data.rol})<br>
+            Cédula: ${data.cedula} | Materia: ${data.materia}<br>
+            Tel: ${data.telefono} | Correo: ${data.correo}
+          </div>
+        `;
+      });
+    }
+
+    // Cargar profesores al iniciar
+    mostrarProfesores();
+  </script>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-app.js";
+    import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.2.1/firebase-analytics.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyDpawVFGu2N7V8LGMO9R8KM0vNlbTQP3LI",
+      authDomain: "integratic-7c5e3.firebaseapp.com",
+      projectId: "integratic-7c5e3",
+      storageBucket: "integratic-7c5e3.firebasestorage.app",
+      messagingSenderId: "714649500119",
+      appId: "1:714649500119:web:1c0c886b5b1891e27bf392",
+      measurementId: "G-PF5Z75GV0C"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const analytics = getAnalytics(app);
+  </script>
+</body>    
+<script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1242,4 +1405,3 @@
     </script>
 </body>
 </html>
-
